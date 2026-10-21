@@ -1,0 +1,24 @@
+{
+  "name": "yapper",
+  "version": "1.0.0",
+  "description": "Yapper — a free, open chat app for communities. Servers, channels, roles, voice, polls, custom emojis and more.",
+  "private": true,
+  "main": "server/index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --no-warnings=ExperimentalWarning server/index.js",
+    "dev": "node --no-warnings=ExperimentalWarning --watch server/index.js",
+    "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "express": "^5.3.0",
+    "multer": "^2.4.0",
+    "socket.io": "^4.8.4",
+    "web-push": "^3.6.7"
+  }
+}

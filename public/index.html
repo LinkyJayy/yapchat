@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>Yapper</title>
+  <meta name="description" content="Yapper — free chat for your communities and friends.">
+  <meta name="theme-color" content="#00d087">
+  <meta name="color-scheme" content="dark light">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Yapper">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="preload" href="/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/css/app.css">
+  <script src="/socket.io/socket.io.min.js" defer></script>
+  <script src="/js/main.js" type="module"></script>
+</head>
+<body>
+  <div id="app">
+    <div class="boot">
+      <img src="/icons/logo.png" alt="" class="boot-logo">
+    </div>
+  </div>
+  <div id="layers"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <div id="audio-sinks" hidden></div>
+</body>
+</html>

@@ -1,0 +1,7 @@
+node_modules/
+data/
+.env
+desktop/node_modules/
+desktop/dist/
+*.log
+.DS_Store
