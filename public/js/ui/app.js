@@ -569,14 +569,17 @@ function renderUserPanel() {
   const u = state.user;
   const st = statusOf(u);
   const v = voice.prefs();
+  const bg = u.settings?.bgMusic || {};
   p.innerHTML = `
     <div class="me" title="Set status">${avatarHtml(u, { status: true })}
       <div style="min-width:0"><div class="n">${esc(u.display_name || u.username)}</div><div class="s">${customStatusHtml(u) || esc(STATUS_LABEL[u.set_status] || STATUS_LABEL[st])}</div></div></div>
     <button class="icon-btn ${v.muted ? 'danger active' : ''}" data-mute title="${v.muted ? 'Unmute' : 'Mute'}">${icon(v.muted ? 'micOff' : 'mic')}</button>
     <button class="icon-btn ${v.deafened ? 'danger active' : ''}" data-deaf title="${v.deafened ? 'Undeafen' : 'Deafen'}">${icon(v.deafened ? 'headphonesOff' : 'headphones')}</button>
+    ${bg.url ? `<button class="icon-btn ${bg.enabled ? 'active' : ''}" data-music title="${bg.enabled ? 'Pause' : 'Play'} background music">${icon(bg.enabled ? 'music' : 'musicOff')}</button>` : ''}
     <button class="icon-btn" data-settings title="User Settings">${icon('settings')}</button>`;
   p.onclick = (e) => {
     if (e.target.closest('[data-settings]')) return openSettings();
+    if (e.target.closest('[data-music]')) return import('../music.js').then((m) => m.toggle());
     if (e.target.closest('[data-mute]')) { voice.toggleMute(); return renderUserPanel(); }
     if (e.target.closest('[data-deaf]')) { voice.toggleDeafen(); return renderUserPanel(); }
     const me = e.target.closest('.me');
@@ -584,6 +587,7 @@ function renderUserPanel() {
   };
 }
 on('voice_prefs', () => renderUserPanel());
+on('music', () => renderUserPanel());
 
 function statusMenu(anchor) {
   const set = (status) => PATCH('/users/@me', { status }).then((u) => { state.user = u; emit('self'); }).catch(errToast);

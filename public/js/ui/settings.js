@@ -2,7 +2,7 @@
 import { $, $$, el, esc, toast, errToast, fmtStamp, isMobile } from '../dom.js';
 import { icon } from '../icons.js';
 import { state, emit } from '../store.js';
-import { GET, PATCH, DEL, api, token } from '../api.js';
+import { GET, PATCH, DEL, api, token, upload } from '../api.js';
 import { avatarHtml, imagePickerHtml, bindImagePicker, customStatusHtml } from './components.js';
 import { layer, modal, confirmDialog } from './layers.js';
 import { openPicker } from './picker.js';
@@ -14,7 +14,7 @@ import { applyAppearance } from '../appearance.js';
 
 const SECTIONS = [
   ['h', 'User Settings'], ['account', 'My Account'], ['profile', 'Profile'], ['devices', 'Devices'],
-  ['h', 'App Settings'], ['appearance', 'Appearance'], ['notifications', 'Notifications'], ['voice', 'Voice & Video'], ['about', 'About Yapper'],
+  ['h', 'App Settings'], ['appearance', 'Appearance'], ['notifications', 'Notifications'], ['voice', 'Voice & Video'], ['music', 'Background Music'], ['about', 'About Yapper'],
 ];
 
 export function openSettings(initial) {
@@ -35,7 +35,7 @@ export function openSettings(initial) {
     inner.innerHTML = `<button class="btn ghost small mobile-back" data-back>${icon('back')} Back</button>`;
     const body = el('<div></div>');
     inner.append(body);
-    ({ account, profile, devices, appearance, notifications: notifSection, voice: voiceSection, about })[k](body, entry);
+    ({ account, profile, devices, appearance, notifications: notifSection, voice: voiceSection, music: musicSection, about })[k](body, entry);
   };
   root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-s]');
@@ -303,6 +303,55 @@ async function voiceSection(body) {
   };
   const obs = new MutationObserver(() => { if (!body.isConnected) { stopTest?.(); obs.disconnect(); } });
   obs.observe(document.getElementById('layers'), { childList: true, subtree: true });
+}
+
+async function musicSection(body) {
+  const player = await import('../music.js');
+  const render = () => {
+    const m = player.music();
+    body.innerHTML = `<h1>Background Music</h1>
+      <p class="muted">Pick any audio file and Yapper will loop it quietly in the background. It's saved to your account, so it plays on all your devices.</p>
+      <div class="list-row">${icon('music')}
+        <div class="grow"><div class="t">${m.url ? esc(m.name || 'Your music') : 'No music chosen'}</div>
+        <div class="d">MP3, OGG, WAV, FLAC, M4A or WebM · up to ${Math.round((state.limits.music || 20 * 1024 * 1024) / 1048576)} MB</div></div>
+        <label class="btn small">${m.url ? 'Change' : 'Choose File'}<input type="file" accept="audio/*,.mp3,.ogg,.wav,.flac,.m4a,.webm" hidden data-file></label>
+        ${m.url ? '<button class="btn small secondary" data-remove>Remove</button>' : ''}</div>
+      <div data-status class="small muted" style="min-height:20px;margin:4px 0 8px"></div>
+      ${m.url ? `
+      <div class="toggle-row"><div><div class="t">Play background music</div><div class="d">You can also toggle it from the ${icon('music', 'inline-ic')} button next to your name.</div></div>
+        <label class="switch"><input type="checkbox" data-enabled ${m.enabled ? 'checked' : ''}><span></span></label></div>
+      <div class="toggle-row"><div style="flex:1"><div class="t">Volume</div>
+        <div class="row" style="margin-top:8px"><input type="range" min="0" max="1" step="0.01" value="${m.volume ?? 0.4}" data-volume style="flex:1;accent-color:var(--mint)"><span data-vol>${Math.round((m.volume ?? 0.4) * 100)}%</span></div></div></div>
+      <div class="toggle-row"><div><div class="t">Pause during calls</div><div class="d">Stops the music while you're in a voice channel or call.</div></div>
+        <label class="switch"><input type="checkbox" data-calls ${m.pauseInCalls !== false ? 'checked' : ''}><span></span></label></div>` : ''}`;
+  };
+  render();
+  body.onchange = async (e) => {
+    if (e.target.matches('[data-file]')) {
+      const f = e.target.files[0];
+      if (!f) return;
+      const status = $('[data-status]', body);
+      status.textContent = 'Uploading…';
+      const form = new FormData();
+      form.append('file', f);
+      try {
+        state.user = await upload('/users/@me/music', form, (p) => { status.textContent = `Uploading… ${Math.round(p * 100)}%`; });
+        emit('self');
+        toast('Background music set! 🎵', 'ok');
+        render();
+      } catch (err) { status.textContent = ''; errToast(err); }
+      return;
+    }
+    if (e.target.matches('[data-enabled]')) player.update({ enabled: e.target.checked });
+    if (e.target.matches('[data-calls]')) player.update({ pauseInCalls: e.target.checked });
+  };
+  body.oninput = (e) => {
+    if (e.target.matches('[data-volume]')) { player.setVolume(e.target.value); $('[data-vol]', body).textContent = `${Math.round(e.target.value * 100)}%`; }
+  };
+  body.onclick = async (e) => {
+    if (!e.target.closest('[data-remove]')) return;
+    try { state.user = await DEL('/users/@me/music'); emit('self'); render(); } catch (err) { errToast(err); }
+  };
 }
 
 function about(body) {

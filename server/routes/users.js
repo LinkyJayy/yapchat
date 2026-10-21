@@ -81,7 +81,7 @@ r.get('/ready', h((req, res) => {
   const notify = all('SELECT target_id, level, muted FROM notify_settings WHERE user_id = ?', uid);
   res.json({
     user: ser.selfUser(req.user), servers, dms, relationships, read_states: readStates, notify_settings: notify,
-    vapid_public_key: push.publicKey(), limits: { upload: config.maxUploadBytes, avatar: config.maxAvatarBytes, emoji: config.maxEmojiBytes },
+    vapid_public_key: push.publicKey(), limits: { upload: config.maxUploadBytes, avatar: config.maxAvatarBytes, emoji: config.maxEmojiBytes, music: config.maxMusicBytes },
   });
 }));
 
@@ -113,7 +113,11 @@ r.patch('/users/@me', avatarUpload, h(async (req, res) => {
   if ('settings' in b) {
     const s = typeof b.settings === 'string' ? parseJSON(b.settings, null) : b.settings;
     if (!s || typeof s !== 'object') fail(400, 'Invalid settings.');
-    const json = JSON.stringify({ ...parseJSON(u.settings, {}), ...s });
+    const current = parseJSON(u.settings, {});
+    const merged = { ...current, ...s };
+    // The music file itself is only changed through /users/@me/music.
+    if (s.bgMusic && typeof s.bgMusic === 'object') merged.bgMusic = { ...s.bgMusic, url: current.bgMusic?.url || null, name: current.bgMusic?.name || null };
+    const json = JSON.stringify(merged);
     if (json.length > 20000) fail(400, 'Settings too large.');
     sets.settings = json;
   }
@@ -158,9 +162,36 @@ r.delete('/users/@me', h(async (req, res) => {
     run('DELETE FROM users WHERE id = ?', u.id);
   });
   for (const m of related) gateway.toServer(m.server_id, 'member_remove', { server_id: m.server_id, user_id: u.id });
-  uploads.removeUpload(u.avatar); uploads.removeUpload(u.banner);
+  uploads.removeUpload(u.avatar); uploads.removeUpload(u.banner); uploads.removeUpload(parseJSON(u.settings, {}).bgMusic?.url);
   gateway.disconnectUser(u.id);
   res.json({ ok: true });
+}));
+
+// ---------- Background music ----------
+const PLAYABLE_AUDIO = new Set(['audio/mpeg', 'audio/ogg', 'audio/wav', 'audio/flac', 'audio/mp4', 'video/webm', 'video/mp4']);
+
+function setMusic(user, music) {
+  const settings = parseJSON(user.settings, {});
+  const next = { ...settings, bgMusic: { ...(settings.bgMusic || {}), ...music } };
+  run('UPDATE users SET settings = ? WHERE id = ?', JSON.stringify(next), user.id);
+  const fresh = ser.selfUser(get('SELECT * FROM users WHERE id = ?', user.id));
+  gateway.toUser(user.id, 'self_update', fresh);
+  return fresh;
+}
+
+r.post('/users/@me/music', uploads.memory(config.maxMusicBytes).single('file'), h((req, res) => {
+  if (!req.file) fail(400, 'Choose an audio file.');
+  const info = uploads.sniff(req.file.buffer);
+  if (!info || !PLAYABLE_AUDIO.has(info.mime)) fail(400, 'Please choose an audio file (MP3, OGG, WAV, FLAC, M4A or WebM).');
+  const old = parseJSON(req.user.settings, {}).bgMusic?.url;
+  const f = uploads.store(req.file);
+  uploads.removeUpload(old);
+  res.json(setMusic(req.user, { url: f.url, name: f.name, enabled: true }));
+}));
+
+r.delete('/users/@me/music', h((req, res) => {
+  uploads.removeUpload(parseJSON(req.user.settings, {}).bgMusic?.url);
+  res.json(setMusic(req.user, { url: null, name: null, enabled: false }));
 }));
 
 r.post('/users/@me/push', h((req, res) => {

@@ -17,6 +17,7 @@ module.exports = {
   maxUploadBytes: mb(process.env.MAX_UPLOAD_MB, 50),
   maxAvatarBytes: mb(process.env.MAX_AVATAR_MB, 10),
   maxEmojiBytes: mb(process.env.MAX_EMOJI_MB, 2),
+  maxMusicBytes: mb(process.env.MAX_MUSIC_MB, 20),
   maxEmojisPerServer: Number(process.env.MAX_EMOJIS_PER_SERVER) || 250,
   registrationOpen: process.env.REGISTRATION_OPEN !== 'false',
   iceServers: process.env.ICE_SERVERS

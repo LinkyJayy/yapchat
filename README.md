@@ -45,6 +45,7 @@
 - **PWA**: installable on Android, iOS/iPadOS, Windows, macOS, Linux and ChromeOS, works offline for the shell
 - **Push notifications on phone and PC** (Web Push), even when the app is closed; per-server and per-channel notification levels and muting; app-icon unread badge
 - **PC desktop app** (Electron) for Windows, macOS and Linux with tray icon, native notifications, taskbar badge and start-at-login
+- **Background music**: pick any audio file (MP3, OGG, WAV, FLAC, M4A, WebM) in *User Settings → Background Music* and it loops in the background on all your devices, with volume, a quick play/pause button next to your name, lock-screen controls, and optional auto-pause during calls
 - Dark, Light, Midnight (AMOLED) and system themes, compact mode, font scaling, reduced motion
 - Mint green theme matching the logo (`#00D087`)
 - **Inter** for text, **Noto 3D Emoji** for emoji everywhere except Apple devices (iOS/iPadOS/macOS keep Apple's native emoji)
@@ -82,6 +83,7 @@ Data (SQLite database + uploads) is stored in `./data` by default.
 | `MAX_UPLOAD_MB` | `50` | Max size per message attachment |
 | `MAX_AVATAR_MB` | `10` | Max avatar / banner / server icon size |
 | `MAX_EMOJI_MB` | `2` | Max custom emoji size |
+| `MAX_MUSIC_MB` | `20` | Max background music file size |
 | `MAX_EMOJIS_PER_SERVER` | `250` | Custom emoji limit per server |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | auto | Web Push keys. Generated and stored in the database on first run if not set |
 | `VAPID_SUBJECT` | `mailto:admin@yapper.local` | Contact for push services — set to your email |

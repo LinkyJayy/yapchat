@@ -875,3 +875,8 @@ input[type="color"].input { padding: 2px; width: 48px; height: 32px; min-height:
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { animation: none !important; transition: none !important; }
 :root[data-theme="light"] .mention { color: var(--link); }
 :root[data-theme="light"] .mention:hover { color: #fff; }
+
+.inline-ic { width: 14px; height: 14px; vertical-align: -2px; }
+.list-row > svg { width: 24px; height: 24px; flex: none; color: var(--mint); }
+.user-panel { gap: 2px; }
+.user-panel .icon-btn { width: 30px; }

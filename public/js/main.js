@@ -36,6 +36,7 @@ async function boot() {
   const { mountApp } = await import('./ui/app.js');
   mountApp();
   connect();
+  import('./music.js').then((m) => m.sync());
   updateBadge();
   syncSubscription();
 
