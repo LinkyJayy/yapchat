@@ -1,7 +1,7 @@
 // Channel settings: overview + permission overwrites.
 import { $, $$, el, esc, toast, errToast } from '../dom.js';
 import { icon } from '../icons.js';
-import { state, on, P, has, channelById, sortedRoles, displayName } from '../store.js';
+import { state, on, P, has, channelById, sortedRoles, displayName, roleAttrs, roleSwatch } from '../store.js';
 import { PATCH, PUT } from '../api.js';
 import { layer, menu } from './layers.js';
 import { CHANNEL_PERM_KEYS, permLabel } from './perms.js';
@@ -88,7 +88,7 @@ function perms(body, C, S) {
       <h3>Advanced Permissions</h3>
       <div class="role-editor">
         <div class="role-list"><button class="btn small block secondary" data-add style="margin-bottom:8px">${icon('plus')} Add Role or Member</button>
-          ${targets.map((t) => `<button class="${t.type === target.type && t.id === target.id ? 'active' : ''}" data-t="${t.type}:${t.id}">${t.type === 'role' ? `<span class="dot" style="background:${s.roles.find((r) => r.id === t.id)?.color || 'var(--offline)'}"></span>` : icon('users')}<span>${esc(name(t))}</span></button>`).join('')}</div>
+          ${targets.map((t) => `<button class="${t.type === target.type && t.id === target.id ? 'active' : ''}" data-t="${t.type}:${t.id}">${t.type === 'role' ? `<span class="dot" style="background:${roleSwatch(s.roles.find((r) => r.id === t.id) || {})}"></span>` : icon('users')}<span>${esc(name(t))}</span></button>`).join('')}</div>
         <div>${CHANNEL_PERM_KEYS.map((k) => {
           const { label, desc, bit } = permLabel(k);
           const st = ow.allow & bit ? 'allow' : ow.deny & bit ? 'deny' : 'inherit';
@@ -122,7 +122,7 @@ function perms(body, C, S) {
       const items = [
         { header: 'Roles' },
         ...sortedRoles(s).filter((r) => !r.is_default && !ows.some((o) => o.target_type === 'role' && o.target_id === r.id)).map((r) => ({
-          html: `<span style="color:${r.color || 'inherit'}">${esc(r.name)}</span>`, action: () => { target = { type: 'role', id: r.id }; setOw(target, P.VIEW_CHANNELS, 0); },
+          html: `<span ${roleAttrs(r)}>${esc(r.name)}</span>`, action: () => { target = { type: 'role', id: r.id }; setOw(target, P.VIEW_CHANNELS, 0); },
         })),
         { header: 'Members' },
         ...[...map.values()].filter((m) => !ows.some((o) => o.target_type === 'member' && o.target_id === m.user.id)).slice(0, 50).map((m) => ({

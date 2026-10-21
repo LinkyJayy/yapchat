@@ -1,7 +1,7 @@
 // Side panels: search, pinned messages, mentions inbox.
 import { $, el, esc, errToast, fmtStamp, debounce } from '../dom.js';
 import { icon } from '../icons.js';
-import { state, emit, displayName, channelById, dmName, memberColor, getUser, cacheUser } from '../store.js';
+import { state, emit, displayName, channelById, dmName, nameAttrs, getUser, cacheUser } from '../store.js';
 import { GET, DEL } from '../api.js';
 import { renderMarkdown } from '../markdown.js';
 import { avatarHtml } from './components.js';
@@ -25,12 +25,11 @@ function resultCard(m, { showWhere = true, unpin = false } = {}) {
   const ch = channelById(m.channel_id);
   const sid = ch?.server_id || null;
   const where = !ch ? '' : ch.server_id ? `${esc(state.servers.get(ch.server_id)?.name || '')} › #${esc(ch.name)}` : esc(dmName(ch));
-  const color = sid ? memberColor(sid, m.author.id) : null;
   const atts = m.attachments.length ? `<div class="tiny muted">📎 ${m.attachments.map((a) => esc(a.name)).join(', ')}</div>` : '';
   return `<div class="result-card" data-ch="${m.channel_id}" data-m="${m.id}">
     ${showWhere ? `<div class="where">${where}</div>` : ''}
     <div class="msg first" style="margin-top:4px"><div class="avatar-wrap">${avatarHtml(getUser(m.author.id) || m.author)}</div>
-      <div class="head"><span class="author" ${color ? `style="color:${color}"` : ''}>${esc(displayName(m.author.id, sid))}</span><span class="time">${fmtStamp(m.created_at)}</span>
+      <div class="head"><span ${nameAttrs(sid, m.author.id, 'author')}>${esc(displayName(m.author.id, sid))}</span><span class="time">${fmtStamp(m.created_at)}</span>
       ${unpin ? `<button class="icon-btn" data-unpin="${m.id}" title="Unpin" style="margin-left:auto;width:24px;height:24px">${icon('x')}</button>` : ''}</div>
       <div class="content">${m.type === 'poll' ? `📊 ${esc(m.content)}` : renderMarkdown(m.content, { serverId: sid })}</div>${atts}</div></div>`;
 }

@@ -2,7 +2,7 @@
 import { $, $$, el, esc, on as onEvt, toast, errToast, copyText, isMobile, fmtDuration } from '../dom.js';
 import { icon } from '../icons.js';
 import {
-  state, on, emit, P, has, currentServer, currentChannel, channelById, displayName, memberColor, dmName, isUnread,
+  state, on, emit, P, has, currentServer, currentChannel, channelById, displayName, nameAttrs, dmName, isUnread,
   mentionCount, serverUnread, serverMentions, dmMentions, isMuted, getUser, cacheUser, saveCollapsed, sortedRoles, relationship,
 } from '../store.js';
 import { GET, POST, PUT, DEL, PATCH } from '../api.js';
@@ -540,12 +540,11 @@ async function renderMembers() {
 function memberRow(user, s, owner) {
   const u = getUser(user.id) || user;
   const st = statusOf(u);
-  const color = s ? memberColor(s.id, u.id) : null;
   const m = s ? state.members.get(s.id)?.get(u.id) : null;
   const timedOut = m?.timeout_until && m.timeout_until > Date.now();
   return `<div class="member ${st === 'offline' ? 'offline' : ''}" data-user="${u.id}">
     ${avatarHtml(u, { status: true })}
-    <div class="info"><div class="n" ${color ? `style="color:${color}"` : ''}><span style="overflow:hidden;text-overflow:ellipsis">${emojify(esc(displayName(u.id, s?.id)))}</span>${owner ? `<span title="Owner">${icon('crown', 'crown')}</span>` : ''}${timedOut ? `<span title="Timed out for ${fmtDuration(m.timeout_until - Date.now())}">${icon('timer', 'crown')}</span>` : ''}</div>
+    <div class="info"><div class="n"><span ${nameAttrs(s?.id, u.id, '', 'overflow:hidden;text-overflow:ellipsis')}>${emojify(esc(displayName(u.id, s?.id)))}</span>${owner ? `<span title="Owner">${icon('crown', 'crown')}</span>` : ''}${timedOut ? `<span title="Timed out for ${fmtDuration(m.timeout_until - Date.now())}">${icon('timer', 'crown')}</span>` : ''}</div>
     ${u.custom_status || u.custom_status_emoji ? `<div class="s">${customStatusHtml(u)}</div>` : ''}</div>
   </div>`;
 }

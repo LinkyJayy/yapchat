@@ -106,6 +106,48 @@ export function memberColor(serverId, userId) {
   return null;
 }
 
+// Colors a member's name should use: the top role's own gradient, or a blend of
+// their top (up to 3) colored roles when they have several.
+export function memberPaint(serverId, userId) {
+  const s = state.servers.get(serverId);
+  const m = memberOf(serverId, userId);
+  if (!s || !m) return null;
+  const colored = sortedRoles(s).filter((r) => !r.is_default && r.color && m.roles.includes(r.id));
+  if (!colored.length) return null;
+  const top = colored[0];
+  let used = [top];
+  let colors = top.color2 ? [top.color, top.color2] : [top.color];
+  if (!top.color2 && colored.length > 1) {
+    used = colored.slice(0, 3);
+    colors = [...new Set(used.map((r) => r.color))];
+  }
+  return { colors, animated: used.some((r) => r.animated) };
+}
+
+// Class + inline style for painting text with a solid, gradient or animated color.
+export function paintStyle(paint) {
+  if (!paint) return { cls: '', style: '' };
+  const { colors, animated } = paint;
+  if (colors.length === 1) return { cls: animated ? 'role-cycle' : '', style: `color:${colors[0]}` };
+  return { cls: `role-gradient${animated ? ' role-animated' : ''}`, style: `--rg:linear-gradient(90deg,${[...colors, colors[0]].join(',')})` };
+}
+
+// Attribute string for a member's name element.
+export function nameAttrs(serverId, userId, cls = '', extraStyle = '') {
+  const p = paintStyle(serverId ? memberPaint(serverId, userId) : null);
+  const style = [p.style, extraStyle].filter(Boolean).join(';');
+  return `class="${[cls, p.cls].filter(Boolean).join(' ')}"${style ? ` style="${style}"` : ''}`;
+}
+
+// Attribute string for text painted in a role's own colors.
+export function roleAttrs(r, cls = '') {
+  const p = paintStyle(r?.color ? { colors: r.color2 ? [r.color, r.color2] : [r.color], animated: !!r.animated } : null);
+  return `class="${[cls, p.cls].filter(Boolean).join(' ')}"${p.style ? ` style="${p.style}"` : ''}`;
+}
+
+// Background for a role's color dot / swatch.
+export const roleSwatch = (r) => (r.color ? (r.color2 ? `linear-gradient(135deg,${r.color},${r.color2})` : r.color) : 'var(--offline)');
+
 export function dmName(dm) {
   if (dm.name) return dm.name;
   if (!dm.recipients.length) return 'Empty Group';

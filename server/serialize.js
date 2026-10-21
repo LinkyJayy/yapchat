@@ -99,7 +99,7 @@ function message(m, cache = new Map()) {
 
 function role(r) {
   return {
-    id: r.id, name: r.name, color: r.color, permissions: r.permissions, position: r.position,
+    id: r.id, name: r.name, color: r.color, color2: r.color2 || null, animated: !!r.animated, permissions: r.permissions, position: r.position,
     hoist: !!r.hoist, mentionable: !!r.mentionable, is_default: !!r.is_default,
   };
 }

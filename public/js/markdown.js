@@ -2,7 +2,7 @@
 // is stashed behind placeholder tokens so later passes can't corrupt it.
 import { esc, fmtStamp, fmtRelative, fmtFull, fmtDate, fmtTime } from './dom.js';
 import { emojify, customEmojiHtml, emojiByCode, emojiHtml } from './emoji.js';
-import { state, displayName, channelById } from './store.js';
+import { state, displayName, channelById, roleAttrs } from './store.js';
 
 const TOK = '\u0001';
 
@@ -27,8 +27,8 @@ export function renderMarkdown(src, { serverId = null, jumbo = false, inline = f
   s = s.replace(/&lt;@&amp;(\d+)&gt;/g, (_, id) => {
     const role = serverId && state.servers.get(serverId)?.roles.find((r) => r.id === Number(id));
     if (!role) return put('<span class="mention">@deleted-role</span>');
-    const style = role.color ? ` style="color:${role.color};background:${role.color}22"` : '';
-    return put(`<span class="mention role"${style}>@${esc(role.name)}</span>`);
+    const style = role.color ? ` style="background:${role.color}22"` : '';
+    return put(`<span class="mention role"${style}><span ${roleAttrs(role)}>@${esc(role.name)}</span></span>`);
   });
   s = s.replace(/&lt;#(\d+)&gt;/g, (_, id) => {
     const ch = channelById(Number(id));

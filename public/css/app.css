@@ -880,3 +880,26 @@ input[type="color"].input { padding: 2px; width: 48px; height: 32px; min-height:
 .list-row > svg { width: 24px; height: 24px; flex: none; color: var(--mint); }
 .user-panel { gap: 2px; }
 .user-panel .icon-btn { width: 30px; }
+
+/* Gradient & animated role colors */
+.role-gradient { background-image: var(--rg); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
+.role-gradient.role-animated { animation: role-flow 3s linear infinite; }
+.role-cycle { animation: role-hue 6s linear infinite; }
+@keyframes role-flow { to { background-position: -200% center; } }
+@keyframes role-hue { to { filter: hue-rotate(360deg); } }
+.role-preview { padding: 6px 12px; border-radius: 6px; background: var(--bg-elev); font-weight: 600; }
+.mention.role:hover .role-gradient { -webkit-text-fill-color: currentColor; }
+
+/* Keyboard shortcuts */
+.shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: .9rem; }
+.shortcut-row .keys { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end; flex: none; max-width: 60%; }
+.shortcut-row .plus { color: var(--text-faint); font-size: .75rem; }
+kbd { font-family: var(--font); font-size: .75rem; font-weight: 700; min-width: 26px; height: 26px; padding: 0 8px; display: inline-grid; place-items: center; border-radius: 6px; background: var(--bg-elev); border: 1px solid var(--border-strong); border-bottom-width: 3px; color: var(--text); }
+
+/* Snake */
+.snake-box { background: #0d1311; border: 1px solid rgba(0, 208, 135, .4); border-radius: 18px; padding: 14px; color: #e7f3ee; box-shadow: 0 0 60px rgba(0, 208, 135, .25); width: min(440px, calc(100vw - 24px)); position: relative; }
+.snake-top { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+.snake-box canvas { width: 100%; aspect-ratio: 1; border-radius: 10px; display: block; touch-action: none; }
+.snake-msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; font-size: 1.25rem; font-weight: 700; text-shadow: 0 2px 8px #000; }
+.snake-msg:empty { display: none; }
+.snake-help { text-align: center; font-size: .75rem; color: #9cb1a8; margin-top: 10px; }

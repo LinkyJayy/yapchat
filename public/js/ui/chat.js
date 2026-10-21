@@ -1,7 +1,7 @@
 // Text channel / DM view: header, message list, composer.
 import { $, $$, el, esc, toast, errToast, copyText, fmtStamp, fmtTime, fmtFull, fmtDate, fmtBytes, fmtDuration, isMobile, debounce } from '../dom.js';
 import { icon } from '../icons.js';
-import { state, on, emit, P, has, displayName, memberColor, dmName, getUser, cacheUser, isMuted } from '../store.js';
+import { state, on, emit, P, has, displayName, nameAttrs, roleAttrs, dmName, getUser, cacheUser, isMuted } from '../store.js';
 import { GET, POST, PUT, DEL, PATCH, upload } from '../api.js';
 import { renderMarkdown, plainText } from '../markdown.js';
 import { emojiHtml, anyEmojiHtml, isEmojiOnly, emojify, emojiByCode, emojiList, loadEmoji, withTone, customEmojiHtml, recentEmoji } from '../emoji.js';
@@ -108,8 +108,7 @@ export function mountChat(slot, ch) {
     && m.id !== firstUnreadId;
 
   function authorName(u) {
-    const color = sid ? memberColor(sid, u.id) : null;
-    return `<span class="author" data-user="${u.id}" ${color ? `style="color:${color}"` : ''}>${emojify(esc(displayName(u.id, sid)))}</span>`;
+    return `<span ${nameAttrs(sid, u.id, 'author')} data-user="${u.id}">${emojify(esc(displayName(u.id, sid)))}</span>`;
   }
 
   function attachmentsHtml(m) {
@@ -748,7 +747,7 @@ export function mountChat(slot, ch) {
         .map((u) => ({ html: `${avatarHtml(getUser(u.id) || u, { size: 's24' })}<span>${esc(displayName(u.id, sid))}</span><span class="sub">${esc(u.username)}</span>`, value: `@${u.username} ` }));
       if (server) {
         items.push(...server.roles.filter((r) => !r.is_default && (r.mentionable || has(perms(), P.MENTION_EVERYONE)) && r.name.toLowerCase().includes(q)).slice(0, 4)
-          .map((r) => ({ html: `<span style="color:${r.color || 'inherit'}">@${esc(r.name)}</span><span class="sub">Role</span>`, value: `<@&${r.id}> ` })));
+          .map((r) => ({ html: `<span ${roleAttrs(r)}>@${esc(r.name)}</span><span class="sub">Role</span>`, value: `<@&${r.id}> ` })));
         if (has(perms(), P.MENTION_EVERYONE)) ['everyone', 'here'].filter((x) => x.startsWith(q)).forEach((x) => items.push({ html: `<span>@${x}</span><span class="sub">${x === 'here' ? 'Notify online members' : 'Notify everyone'}</span>`, value: `@${x} ` }));
       }
     } else if (server && (m = /(^|\s)#([\w-]{0,100})$/.exec(before))) {

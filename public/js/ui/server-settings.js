@@ -1,7 +1,7 @@
 // Server creation/joining, PIN invites, and full server settings.
 import { $, $$, el, esc, toast, errToast, copyText, fmtStamp, isMobile } from '../dom.js';
 import { icon } from '../icons.js';
-import { state, P, has, sortedRoles, displayName, getUser, cacheUser, emit } from '../store.js';
+import { state, P, has, sortedRoles, displayName, getUser, cacheUser, emit, roleAttrs, roleSwatch, nameAttrs } from '../store.js';
 import { GET, POST, PATCH, PUT, DEL, api } from '../api.js';
 import { modal, layer, confirmDialog } from './layers.js';
 import { navigate, channelPath } from '../router.js';
@@ -213,13 +213,20 @@ function roles(body, S) {
     body.innerHTML = `<h1>Roles</h1><p class="muted">Use roles to group members and assign permissions. Higher roles are listed first. The server owner can do anything.</p>
       <div class="role-editor">
         <div class="role-list"><button class="btn small block" data-new style="margin-bottom:8px">${icon('plus')} Create Role</button>
-          ${list.map((x, i) => `<button class="${x.id === selected ? 'active' : ''}" data-role="${x.id}"><span class="dot" style="background:${x.color || 'var(--offline)'}"></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</span>
+          ${list.map((x, i) => `<button class="${x.id === selected ? 'active' : ''}" data-role="${x.id}"><span class="dot" style="background:${roleSwatch(x)}"></span><span class="grow" style="overflow:hidden;text-overflow:ellipsis">${esc(x.name)}</span>
             ${!x.is_default && x.position < myTop() ? `<span class="mv"><span class="icon-btn" data-up="${x.id}" title="Move up" ${i === 0 ? 'hidden' : ''}>${icon('chevron')}</span></span>` : ''}</button>`).join('')}</div>
         <div>${r ? `
           <div class="field"><label>Role Name</label><input class="input" data-name maxlength="100" value="${esc(r.name)}" ${r.is_default || !editable ? 'disabled' : ''}></div>
           <div class="field"><label>Role Color</label><div class="color-row">
             ${['', '#00d087', '#1abc9c', '#3498db', '#9b59b6', '#e91e63', '#f1c40f', '#e67e22', '#e74c3c', '#95a5a6'].map((c) => `<button class="color-swatch ${(r.color || '') === c ? 'sel' : ''}" data-color="${c}" style="background:${c || 'var(--offline)'}" title="${c || 'Default'}" ${!editable ? 'disabled' : ''}></button>`).join('')}
             <input type="color" class="input" data-colorpick value="${r.color || '#00d087'}" ${!editable ? 'disabled' : ''}></div></div>
+          ${r.is_default ? '' : `<div class="field"><label>Gradient</label>
+            <div class="row wrap"><input type="color" class="input" data-color2 value="${r.color2 || r.color || '#3498db'}" ${!editable || !r.color ? 'disabled' : ''} title="Gradient end color">
+              ${r.color2 ? `<button class="btn small secondary" data-nograd ${!editable ? 'disabled' : ''}>Remove gradient</button>` : ''}
+              <span class="role-preview"><span ${roleAttrs(r)}>${esc(r.name)}</span></span></div>
+            <div class="hint">${r.color ? 'Pick a second color to fade this role\'s name from the role color into it.' : 'Choose a role color first.'} Members with several colored roles automatically get a gradient of their top role colors.</div></div>
+          <div class="toggle-row"><div><div class="t">Animated color</div><div class="d">Gradients flow across the name and solid colors cycle through the rainbow.</div></div>
+            <label class="switch"><input type="checkbox" data-animated ${r.animated ? 'checked' : ''} ${!editable || !r.color ? 'disabled' : ''}><span></span></label></div>`}
           ${r.is_default ? '' : `<div class="toggle-row"><div><div class="t">Display role members separately from online members</div></div><label class="switch"><input type="checkbox" data-hoist ${r.hoist ? 'checked' : ''} ${!editable ? 'disabled' : ''}><span></span></label></div>
           <div class="toggle-row"><div><div class="t">Allow anyone to @mention this role</div></div><label class="switch"><input type="checkbox" data-mentionable ${r.mentionable ? 'checked' : ''} ${!editable ? 'disabled' : ''}><span></span></label></div>`}
           <h3>Permissions</h3>
@@ -246,6 +253,7 @@ function roles(body, S) {
       try { const r = await POST(`/servers/${S().id}/roles`, { name: 'new role' }); selected = r.id; draw(); } catch (err) { errToast(err); }
       return;
     }
+    if (e.target.closest('[data-nograd]')) return save({ color2: null });
     const c = e.target.closest('[data-color]');
     if (c && !c.disabled) return save({ color: c.dataset.color || null });
     if (e.target.closest('[data-delrole]')) {
@@ -259,6 +267,8 @@ function roles(body, S) {
     const t = e.target;
     if (t.matches('[data-name]')) save({ name: t.value });
     if (t.matches('[data-colorpick]')) save({ color: t.value });
+    if (t.matches('[data-color2]')) save({ color2: t.value });
+    if (t.matches('[data-animated]')) save({ animated: t.checked });
     if (t.matches('[data-hoist]')) save({ hoist: t.checked });
     if (t.matches('[data-mentionable]')) save({ mentionable: t.checked });
     if (t.dataset.perm) {
@@ -317,8 +327,8 @@ async function members(body, S) {
       .sort((a, b) => a.joined_at - b.joined_at);
     const roleName = (id) => s.roles.find((r) => r.id === id);
     body.querySelector('[data-list]').innerHTML = list.map((m) => `<div class="list-row" data-user="${m.user.id}">${avatarHtml(getUser(m.user.id) || m.user)}
-      <div class="grow"><div class="t">${esc(displayName(m.user.id, s.id))} <span class="muted small">${esc(m.user.username)}</span>${s.owner_id === m.user.id ? ` ${icon('crown', 'crown')}` : ''}</div>
-      <div class="d">Joined ${fmtStamp(m.joined_at)} · ${m.roles.map(roleName).filter(Boolean).map((r) => `<span style="color:${r.color || 'inherit'}">${esc(r.name)}</span>`).join(', ') || 'No roles'}</div></div>
+      <div class="grow"><div class="t"><span ${nameAttrs(s.id, m.user.id)}>${esc(displayName(m.user.id, s.id))}</span> <span class="muted small">${esc(m.user.username)}</span>${s.owner_id === m.user.id ? ` ${icon('crown', 'crown')}` : ''}</div>
+      <div class="d">Joined ${fmtStamp(m.joined_at)} · ${m.roles.map(roleName).filter(Boolean).map((r) => `<span ${roleAttrs(r)}>${esc(r.name)}</span>`).join(', ') || 'No roles'}</div></div>
       <button class="icon-btn" data-more="${m.user.id}" title="Actions">${icon('more')}</button></div>`).join('');
   };
   body.innerHTML = `<h1>Server Members</h1><input class="input" data-q placeholder="Search members" style="margin-bottom:12px"><div data-list>Loading…</div>`;

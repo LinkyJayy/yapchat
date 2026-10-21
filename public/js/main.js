@@ -37,6 +37,7 @@ async function boot() {
   mountApp();
   connect();
   import('./music.js').then((m) => m.sync());
+  import('./shortcuts.js');
   updateBadge();
   syncSubscription();
 

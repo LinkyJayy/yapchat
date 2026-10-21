@@ -19,7 +19,7 @@
 - Every server has a unique **8-digit PIN** — the *only* way to join. Owners can regenerate it or set a custom 6–12 digit PIN
 - Server icon & banner (animated supported), description, system-message channel
 - **Text, voice, announcement channels and categories**, drag-and-drop reordering, private channels
-- **Roles** with colors, hierarchy, "display separately", mentionable, and 25 permissions (incl. Administrator)
+- **Roles** with colors, **gradient colors** and **animated (color-shifting) colors**, hierarchy, "display separately", mentionable, and 25 permissions (incl. Administrator)
 - Per-channel permission overrides for roles and members (allow / inherit / deny)
 - **The owner can do anything**: bypasses every permission, transfers ownership, deletes the server
 - Moderation: kick, ban (with message purge), timeouts, nickname management, voice mute/disconnect
@@ -48,6 +48,21 @@
 - **Background music**: pick any audio file (MP3, OGG, WAV, FLAC, M4A, WebM) in *User Settings → Background Music* and it loops in the background on all your devices, with volume, a quick play/pause button next to your name, lock-screen controls, and optional auto-pause during calls
 - Dark, Light, Midnight (AMOLED) and system themes, compact mode, font scaling, reduced motion
 - Mint green theme matching the logo (`#00D087`)
+- Members with several colored roles automatically get a gradient name made from their top role colors
+
+## Keyboard shortcuts
+
+Press **Ctrl + \\** (⌘ + \\ on Mac) in the app to see them all.
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl` + `\` | Show all keyboard shortcuts |
+| `Ctrl` + `Alt` + `S` | Toggle background music on or off |
+| `Ctrl` + `Shift` + `M` | Toggle mute |
+| `Ctrl` + `Shift` + `D` | Toggle deafen |
+| `Esc` | Close dialogs, menus and pickers; cancel reply/edit |
+| `↑` (empty message box) | Edit your last message |
+| `↑ ↑ ↓ ↓ ← → ← → B A` | 🐍 Play Snake (click outside the message box first) |
 - **Inter** for text, **Noto 3D Emoji** for emoji everywhere except Apple devices (iOS/iPadOS/macOS keep Apple's native emoji)
 
 ---

@@ -1,7 +1,7 @@
 // User profile popout and user context menu (with moderation actions).
 import { $, el, esc, toast, errToast, copyText, fmtDate, fmtDuration } from '../dom.js';
 import { icon } from '../icons.js';
-import { state, P, has, getUser, cacheUser, displayName, sortedRoles, relationship, memberOf } from '../store.js';
+import { state, P, has, getUser, cacheUser, displayName, sortedRoles, relationship, memberOf, roleSwatch } from '../store.js';
 import { GET, POST, PUT, PATCH, DEL } from '../api.js';
 import { avatarHtml, customStatusHtml } from './components.js';
 import { popout, closePopout, menu, modal, confirmDialog } from './layers.js';
@@ -18,7 +18,7 @@ export async function openDM(userId) {
 
 function rolesHtml(s, m, canManage) {
   const roles = sortedRoles(s).filter((r) => !r.is_default && m.roles.includes(r.id));
-  return `<div class="roles">${roles.map((r) => `<span class="role-chip"><span class="dot" style="background:${r.color || 'var(--offline)'}"></span>${esc(r.name)}${canManage ? `<button data-rmrole="${r.id}" title="Remove role">${icon('x')}</button>` : ''}</span>`).join('')}
+  return `<div class="roles">${roles.map((r) => `<span class="role-chip"><span class="dot" style="background:${roleSwatch(r)}"></span>${esc(r.name)}${canManage ? `<button data-rmrole="${r.id}" title="Remove role">${icon('x')}</button>` : ''}</span>`).join('')}
     ${canManage ? `<button class="role-chip" data-addrole title="Add role">${icon('plus')}</button>` : ''}${!roles.length && !canManage ? '<span class="faint small">No roles</span>' : ''}</div>`;
 }
 
@@ -76,7 +76,7 @@ export async function openProfile(userId, anchor, { serverId = null, side = 'rig
       const avail = sortedRoles(s).filter((r) => !r.is_default && !m.roles.includes(r.id));
       if (!avail.length) return toast('No more roles to add.');
       menu(avail.map((r) => ({
-        html: `<span class="row" style="gap:8px"><span class="status-icon" style="background:${r.color || 'var(--offline)'}"></span>${esc(r.name)}</span>`,
+        html: `<span class="row" style="gap:8px"><span class="status-icon" style="background:${roleSwatch(r)}"></span>${esc(r.name)}</span>`,
         action: async () => {
           try { m = await PATCH(`/servers/${s.id}/members/${userId}`, { roles: [...m.roles, r.id] }); $('[data-roles]', node).innerHTML = rolesHtml(s, m, canManageRoles); } catch (err) { errToast(err); }
         },
@@ -130,7 +130,7 @@ export async function rolesModal(s, userId) {
   modal({
     title: `Roles for ${displayName(userId, s.id)}`,
     body: `<div class="radio-list">${sortedRoles(s).filter((r) => !r.is_default).map((r) => `<label class="radio-item"><input type="checkbox" value="${r.id}" ${sel.has(r.id) ? 'checked' : ''}>
-      <span class="status-icon" style="background:${r.color || 'var(--offline)'}"></span>${esc(r.name)}</label>`).join('') || '<div class="muted">This server has no roles yet. Create some in Server Settings → Roles.</div>'}</div>`,
+      <span class="status-icon" style="background:${roleSwatch(r)}"></span>${esc(r.name)}</label>`).join('') || '<div class="muted">This server has no roles yet. Create some in Server Settings → Roles.</div>'}</div>`,
     buttons: [{ label: 'Cancel', cls: 'ghost' }, {
       label: 'Save', action: async (mm) => {
         const roles = [...mm.body.querySelectorAll('input:checked')].map((x) => Number(x.value));

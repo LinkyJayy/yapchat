@@ -236,6 +236,14 @@ CREATE TABLE IF NOT EXISTS user_notes (
 );
 `);
 
+// Lightweight migrations for databases created by older versions.
+function addColumn(table, column, def) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
+}
+addColumn('roles', 'color2', 'TEXT');
+addColumn('roles', 'animated', 'INTEGER NOT NULL DEFAULT 0');
+
 // Snowflake-ish ids: time-ordered integers that stay inside JS's safe integer range.
 const EPOCH = Date.UTC(2025, 0, 1);
 let lastMs = 0;

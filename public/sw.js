@@ -1,10 +1,10 @@
 /* Yapper service worker: app-shell caching, emoji caching, and push notifications. */
-const VERSION = 'yapper-v2';
+const VERSION = 'yapper-v3';
 const SHELL = [
   '/', '/css/app.css', '/manifest.webmanifest', '/favicon.png', '/icons/logo.png', '/icons/icon-192.png', '/icons/badge-96.png',
   '/fonts/inter-latin-wght-normal.woff2', '/fonts/inter-latin-ext-wght-normal.woff2', '/emoji/data.json',
   '/js/main.js', '/js/api.js', '/js/dom.js', '/js/icons.js', '/js/store.js', '/js/router.js', '/js/realtime.js', '/js/emoji.js',
-  '/js/markdown.js', '/js/notifications.js', '/js/music.js', '/js/appearance.js', '/js/auth.js',
+  '/js/markdown.js', '/js/notifications.js', '/js/music.js', '/js/shortcuts.js', '/js/snake.js', '/js/appearance.js', '/js/auth.js',
   '/js/ui/app.js', '/js/ui/chat.js', '/js/ui/components.js', '/js/ui/layers.js', '/js/ui/picker.js', '/js/ui/profile.js',
   '/js/ui/friends.js', '/js/ui/settings.js', '/js/ui/server-settings.js', '/js/ui/channel-settings.js', '/js/ui/voice.js',
   '/js/ui/panels.js', '/js/ui/poll.js', '/js/ui/perms.js',

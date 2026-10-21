@@ -370,6 +370,11 @@ r.patch('/servers/:id/roles/:rid', h((req, res) => {
     if (b.color && !COLOR_RE.test(b.color)) fail(400, 'Invalid color.');
     sets.color = b.color || null;
   }
+  if ('color2' in b) {
+    if (b.color2 && !COLOR_RE.test(b.color2)) fail(400, 'Invalid gradient color.');
+    sets.color2 = b.color2 || null;
+  }
+  if ('animated' in b) sets.animated = b.animated ? 1 : 0;
   if ('hoist' in b && !role.is_default) sets.hoist = b.hoist ? 1 : 0;
   if ('mentionable' in b && !role.is_default) sets.mentionable = b.mentionable ? 1 : 0;
   if ('permissions' in b) {
