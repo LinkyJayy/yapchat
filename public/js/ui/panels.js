@@ -12,7 +12,7 @@ let current = null;
 
 function panel(title, { filter = '' } = {}) {
   current?.close();
-  const root = el(`<aside class="side-panel"><div class="sp-head">${title}<span class="grow"></span><button class="icon-btn" data-x title="Close">${icon('x')}</button></div>
+  const root = el(`<aside class="side-panel"><div class="sp-head"><span class="row grow" style="gap:8px;min-width:0">${title}</span><button class="icon-btn" data-x title="Close">${icon('x')}</button></div>
     ${filter ? `<div class="sp-filter">${filter}</div>` : ''}<div class="sp-body"></div></aside>`);
   const entry = layer(root, { onClose: () => { if (current === entry) current = null; } });
   current = entry;
@@ -76,39 +76,105 @@ export async function openMentions() {
   bindJump(body, () => entry.close());
 }
 
-export function openSearch({ serverId, channelId }) {
-  const members = serverId ? [...(state.members.get(serverId)?.values() || [])].map((m) => m.user) : [];
-  const { body, root, entry } = panel(`${icon('search')} Search`, {
-    filter: `<input class="input grow" data-q placeholder="Search messages" style="min-width:160px">
-      ${serverId ? `<select class="input" data-from style="width:auto"><option value="">From anyone</option>${members.map((u) => `<option value="${u.id}">${esc(displayName(u.id, serverId))}</option>`).join('')}</select>` : ''}
-      <select class="input" data-has style="width:auto"><option value="">Any content</option><option value="file">Has file</option><option value="poll">Has poll</option><option value="pin">Pinned</option></select>`,
+// Wrap query matches in <mark> inside rendered message text.
+function highlight(rootEl, q) {
+  if (!q) return;
+  const needle = q.toLowerCase();
+  for (const content of rootEl.querySelectorAll('.result-card .content')) {
+    const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const node of nodes) {
+      const text = node.nodeValue;
+      let i = text.toLowerCase().indexOf(needle);
+      if (i < 0) continue;
+      const frag = document.createDocumentFragment();
+      let last = 0;
+      while (i >= 0) {
+        frag.append(text.slice(last, i));
+        const mark = document.createElement('mark');
+        mark.textContent = text.slice(i, i + q.length);
+        frag.append(mark);
+        last = i + q.length;
+        i = text.toLowerCase().indexOf(needle, last);
+      }
+      frag.append(text.slice(last));
+      node.replaceWith(frag);
+    }
+  }
+}
+
+const dayStart = (v) => (v ? new Date(`${v}T00:00:00`).getTime() : 0);
+
+export async function openSearch({ serverId, channelId, query = '', inChannel = null }) {
+  if (serverId && !state.members.has(serverId)) {
+    try { await (await import('./app.js')).loadMembers(serverId); } catch { /* ignore */ }
+  }
+  const servers = state.serverOrder.map((id) => state.servers.get(id)).filter(Boolean);
+  const textChannels = (sid) => (state.servers.get(sid)?.channels || []).filter((c) => c.type === 'text' || c.type === 'announcement');
+  const { body, root, entry } = panel(`${icon('search')} Search Messages`, {
+    filter: `<input class="input" data-q placeholder="Search messages" value="${esc(query)}" style="flex-basis:100%">
+      ${serverId ? `<select class="input" data-server title="Server">${servers.map((sv) => `<option value="${sv.id}" ${sv.id === serverId ? 'selected' : ''}>${esc(sv.name)}</option>`).join('')}</select>
+        <select class="input" data-in title="Channel"></select>
+        <select class="input" data-from title="Author"></select>` : ''}
+      <select class="input" data-has title="Content"><option value="">Any content</option><option value="file">Has file</option><option value="link">Has link</option><option value="poll">Has poll</option><option value="pin">Pinned</option></select>
+      <label class="date-filter">After <input type="date" class="input" data-after></label>
+      <label class="date-filter">Before <input type="date" class="input" data-before></label>
+      <select class="input" data-sort title="Sort"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>`,
   });
-  const q = $('[data-q]', root);
+  const $f = (sel) => root.querySelector(sel);
+  const q = $f('[data-q]');
+
+  const fillServerFilters = (selectedChannel = null) => {
+    if (!serverId) return;
+    const sid = Number($f('[data-server]').value);
+    $f('[data-in]').innerHTML = `<option value="">All channels</option>${textChannels(sid).map((c) => `<option value="${c.id}" ${c.id === selectedChannel ? 'selected' : ''}>#${esc(c.name)}</option>`).join('')}`;
+    const members = [...(state.members.get(sid)?.values() || [])].map((m) => m.user);
+    $f('[data-from]').innerHTML = `<option value="">From anyone</option>${members.map((u) => `<option value="${u.id}">${esc(displayName(u.id, sid))}</option>`).join('')}`;
+  };
+  fillServerFilters(inChannel);
+
   let offset = 0;
   const run = async (more = false) => {
     if (!more) offset = 0;
     const params = new URLSearchParams();
-    if (serverId) params.set('server_id', serverId); else params.set('channel_id', channelId);
-    if (q.value.trim()) params.set('q', q.value.trim());
-    const from = $('[data-from]', root)?.value;
-    if (from) params.set('author_id', from);
-    const hs = $('[data-has]', root).value;
-    if (hs) params.set('has', hs);
+    if (serverId) {
+      params.set('server_id', $f('[data-server]').value);
+      if ($f('[data-in]').value) params.set('in_channel', $f('[data-in]').value);
+      if ($f('[data-from]').value) params.set('author_id', $f('[data-from]').value);
+    } else params.set('channel_id', channelId);
+    const text = q.value.trim();
+    if (text) params.set('q', text);
+    if ($f('[data-has]').value) params.set('has', $f('[data-has]').value);
+    const after = dayStart($f('[data-after]').value), before = dayStart($f('[data-before]').value);
+    if (after) params.set('after', after);
+    if (before) params.set('before', before + 864e5); // inclusive of the chosen day
+    params.set('sort', $f('[data-sort]').value);
     params.set('offset', offset);
-    if (!q.value.trim() && !from && !hs) { body.innerHTML = '<div class="empty">Type something to search.</div>'; return; }
+    const filtered = text || params.has('author_id') || params.has('has') || params.has('after') || params.has('before') || params.has('in_channel');
+    if (!filtered) { body.innerHTML = '<div class="empty">Type something or pick a filter to search.</div>'; return; }
     try {
       const r = await GET(`/search?${params}`);
       const html = r.results.map((m) => resultCard(m)).join('');
-      if (more) { body.querySelector('[data-more]')?.remove(); body.insertAdjacentHTML('beforeend', html); }
+      if (more) { body.querySelector('[data-more]')?.parentElement.remove(); body.insertAdjacentHTML('beforeend', html); }
       else body.innerHTML = `<div class="label" style="padding:4px 12px">${r.total} Result${r.total === 1 ? '' : 's'}</div>${html || '<div class="empty">No results found.</div>'}`;
+      highlight(body, text);
       offset += r.results.length;
       if (offset < r.total) body.insertAdjacentHTML('beforeend', '<div class="center" style="padding:12px"><button class="btn secondary small" data-more>Load more</button></div>');
     } catch (e) { errToast(e); }
   };
   q.addEventListener('input', debounce(() => run(), 350));
-  root.querySelectorAll('select').forEach((s) => s.addEventListener('change', () => run()));
+  root.querySelector('.sp-filter').addEventListener('change', async (e) => {
+    if (e.target.matches('[data-server]')) {
+      const sid = Number(e.target.value);
+      if (!state.members.has(sid)) { try { await (await import('./app.js')).loadMembers(sid); } catch { /* ignore */ } }
+      fillServerFilters();
+    }
+    if (e.target !== q) run();
+  });
   body.addEventListener('click', (e) => { if (e.target.closest('[data-more]')) run(true); });
   bindJump(body, () => { if (matchMedia('(max-width: 860px)').matches) entry.close(); });
-  body.innerHTML = '<div class="empty">Type something to search.</div>';
+  body.innerHTML = '<div class="empty">Type something or pick a filter to search.</div>';
+  if (query || inChannel) run();
   setTimeout(() => q.focus(), 30);
 }

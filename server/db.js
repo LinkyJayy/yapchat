@@ -228,6 +228,16 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS audit_server ON audit_log(server_id, id);
 
+CREATE TABLE IF NOT EXISTS server_reviews (
+  server_id INTEGER NOT NULL REFERENCES servers(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating INTEGER NOT NULL,
+  content TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (server_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS user_notes (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   target_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

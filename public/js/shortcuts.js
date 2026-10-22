@@ -1,7 +1,7 @@
 // Global keyboard shortcuts (and one secret).
 import { esc, toast } from './dom.js';
 import { modal } from './ui/layers.js';
-import { emit } from './store.js';
+import { emit, state } from './store.js';
 
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const CTRL = isMac ? '⌘ Cmd' : 'Ctrl';
@@ -11,6 +11,8 @@ const SHORTCUTS = [
   ['General', [
     [[CTRL, '\\'], 'Show all keyboard shortcuts'],
     [[CTRL, ALT, 'S'], 'Toggle background music on or off'],
+    [[CTRL, 'F'], 'Search messages in this server or conversation'],
+    [['Shift', 'Esc'], 'Mark everything as read'],
     [[CTRL, 'Shift', 'M'], 'Toggle mute'],
     [[CTRL, 'Shift', 'D'], 'Toggle deafen'],
     [['Esc'], 'Close a dialog, menu or picker'],
@@ -69,6 +71,22 @@ document.addEventListener('keydown', (e) => {
   if (mod && !e.altKey && !e.shiftKey && (e.key === '\\' || e.code === 'Backslash')) {
     e.preventDefault();
     showShortcuts();
+    return;
+  }
+  // Ctrl + F: search the current server / conversation.
+  if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyF' && state.user) {
+    const r = state.route;
+    if (r.serverId === '@me' && !r.channelId) return; // nothing to search on the Friends page
+    e.preventDefault();
+    import('./ui/panels.js').then((p) => (r.serverId === '@me'
+      ? p.openSearch({ channelId: r.channelId })
+      : p.openSearch({ serverId: r.serverId })));
+    return;
+  }
+  // Shift + Esc: mark everything as read.
+  if (e.shiftKey && !mod && !e.altKey && e.key === 'Escape' && state.user) {
+    e.preventDefault();
+    import('./ui/app.js').then((a) => a.readAll());
     return;
   }
   // Ctrl + Shift + M / D: mute / deafen.

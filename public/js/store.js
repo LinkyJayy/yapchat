@@ -180,3 +180,36 @@ export const isBlocked = (userId) => relationship(userId) === 'blocked';
 export function saveCollapsed() {
   try { localStorage.setItem('yapper_collapsed', JSON.stringify([...state.collapsed])); } catch { /* ignore */ }
 }
+
+// People typing in a channel right now (excluding you and blocked users): [{ user_id, since }]
+export function typingIn(channelId) {
+  const m = state.typing.get(channelId);
+  if (!m) return [];
+  const now = Date.now();
+  return [...m].filter(([id, t]) => id !== state.user?.id && t.expires > now && relationship(id) !== 'blocked')
+    .map(([user_id, t]) => ({ user_id, since: t.since })).sort((a, b) => a.since - b.since);
+}
+
+// Everyone typing anywhere in a server: [{ user_id, since, channel }]
+export function typingInServer(server) {
+  const out = [];
+  for (const c of server?.channels || []) for (const t of typingIn(c.id)) out.push({ ...t, channel: c });
+  return out;
+}
+
+// Public member counter: online / total / in voice.
+export function serverCounts(s) {
+  const members = state.members.get(s.id);
+  let online = null;
+  if (members) {
+    online = 0;
+    for (const m of members.values()) {
+      const u = m.user.id === state.user?.id ? null : getUser(m.user.id);
+      const st = m.user.id === state.user?.id ? (state.user.set_status === 'invisible' ? 'offline' : 'online') : u?.status || m.user.status;
+      if (st && st !== 'offline') online++;
+    }
+  }
+  const inVoice = new Set();
+  for (const c of s.channels) if (c.type === 'voice') for (const v of state.voice.get(c.id) || []) inVoice.add(v.user_id);
+  return { total: s.member_count, online, voice: inVoice.size };
+}

@@ -16,7 +16,7 @@
 - Private notes on other users
 
 **Servers (PIN-only)**
-- Every server has a unique **8-digit PIN** — the *only* way to join. Owners can regenerate it or set a custom 6–12 digit PIN
+- Every server has a unique **8-digit PIN** — the *only* way to join. Entering a PIN shows a **preview** (member counter, rating, latest reviews) before you join. Owners can regenerate it or set a custom 6–12 digit PIN
 - Server icon & banner (animated supported), description, system-message channel
 - **Text, voice, announcement channels and categories**, drag-and-drop reordering, private channels
 - **Roles** with colors, **gradient colors** and **animated (color-shifting) colors**, hierarchy, "display separately", mentionable, and 25 permissions (incl. Administrator)
@@ -24,6 +24,8 @@
 - **The owner can do anything**: bypasses every permission, transfers ownership, deletes the server
 - Moderation: kick, ban (with message purge), timeouts, nickname management, voice mute/disconnect
 - Audit log, ban list, member list grouped by hoisted roles
+- **Public member counter**: online members, total members and people in voice, shown under the server name, in Server Info and in the PIN preview
+- **Server reviews**: 1–5 star ratings with written reviews, average + breakdown, owners and admins can remove reviews
 - **Custom emojis** (static or animated) — up to 250 per server, usable everywhere you're a member
 
 **Messaging**
@@ -32,7 +34,10 @@
 - **Reactions** (unicode + custom emoji), replies (with ping toggle), edits, deletes, pins, mark unread
 - **Polls** with up to 10 answers, emoji, multi-select and durations from 1 hour to 2 weeks
 - File uploads (up to 10 per message, drag & drop, paste) with image/video/audio previews and spoiler attachments
-- Typing indicators, unread markers & mention badges, jump-to-message, search (by text, author, files, polls, pins), mentions inbox
+- **Typing indicators** that show who is typing, where (dots on channels, DMs and servers, plus "also typing in #channel" under the composer) and for how long
+- **Read All** button (and `Shift + Esc`) to mark every server and DM as read
+- **Message search** per server or DM with filters for channel, author, files/links/polls/pins, date range and sort order, with highlighted matches
+- Unread markers & mention badges, jump-to-message, search (by text, author, files, polls, pins), mentions inbox
 - Slash shortcuts: `/shrug`, `/tableflip`, `/unflip`, `/spoiler`, `/me`
 - Direct messages, **group DMs** (up to 10), friends (requests, accept, remove), blocking
 
@@ -58,6 +63,8 @@ Press **Ctrl + \\** (⌘ + \\ on Mac) in the app to see them all.
 | --- | --- |
 | `Ctrl` + `\` | Show all keyboard shortcuts |
 | `Ctrl` + `Alt` + `S` | Toggle background music on or off |
+| `Ctrl` + `F` | Search messages in the current server or conversation |
+| `Shift` + `Esc` | Mark everything as read |
 | `Ctrl` + `Shift` + `M` | Toggle mute |
 | `Ctrl` + `Shift` + `D` | Toggle deafen |
 | `Esc` | Close dialogs, menus and pickers; cancel reply/edit |

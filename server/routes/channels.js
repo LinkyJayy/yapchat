@@ -430,6 +430,25 @@ r.post('/servers/:sid/ack', h((req, res) => {
   res.json({ ok: true });
 }));
 
+// Mark every server channel and DM as read.
+r.post('/ack-all', h((req, res) => {
+  const uid = req.user.id;
+  const chans = all(
+    `SELECT c.* FROM channels c JOIN members m ON m.server_id = c.server_id AND m.user_id = ? WHERE c.last_message_id IS NOT NULL
+     UNION SELECT c.* FROM channels c JOIN dm_members d ON d.channel_id = c.id AND d.user_id = ? WHERE c.last_message_id IS NOT NULL`, uid, uid);
+  const states = [];
+  tx(() => {
+    for (const ch of chans) {
+      if (!has(channelPermissions(ch, uid), P.VIEW_CHANNELS)) continue;
+      run(`INSERT INTO read_states (user_id, channel_id, last_read_id, mention_count) VALUES (?, ?, ?, 0)
+           ON CONFLICT(user_id, channel_id) DO UPDATE SET last_read_id = excluded.last_read_id, mention_count = 0`, uid, ch.id, ch.last_message_id);
+      states.push({ channel_id: ch.id, last_read_id: ch.last_message_id, mention_count: 0 });
+    }
+  });
+  gateway.toUser(uid, 'read_states', states);
+  res.json({ ok: true, count: states.length });
+}));
+
 // ---------- Search ----------
 r.get('/search', h((req, res) => {
   rateLimit(`search:${req.user.id}`, 30, 60_000);
@@ -439,7 +458,9 @@ r.get('/search', h((req, res) => {
   const author = toId(req.query.author_id);
   const has_ = String(req.query.has || '');
   let channels;
-  if (sid) channels = all('SELECT * FROM channels WHERE server_id = ?', sid);
+  const inChannel = toId(req.query.in_channel);
+  if (sid && inChannel) channels = all('SELECT * FROM channels WHERE server_id = ? AND id = ?', sid, inChannel);
+  else if (sid) channels = all('SELECT * FROM channels WHERE server_id = ?', sid);
   else if (cid) channels = [get('SELECT * FROM channels WHERE id = ?', cid)].filter(Boolean);
   else fail(400, 'Choose where to search.');
   const ids = channels.filter((c) => has(channelPermissions(c, req.user.id), P.VIEW_CHANNELS | P.READ_HISTORY)).map((c) => c.id);
@@ -451,9 +472,14 @@ r.get('/search', h((req, res) => {
   if (has_ === 'file' || has_ === 'image') { where.push("attachments != '[]'"); }
   if (has_ === 'poll') where.push("type = 'poll'");
   if (has_ === 'pin') where.push('pinned = 1');
+  if (has_ === 'link') where.push("content LIKE '%http%'");
+  const after = Number(req.query.after) || 0, before = Number(req.query.before) || 0;
+  if (after) { where.push('created_at >= ?'); params.push(after); }
+  if (before) { where.push('created_at < ?'); params.push(before); }
+  const order = req.query.sort === 'oldest' ? 'ASC' : 'DESC';
   const total = get(`SELECT COUNT(*) AS n FROM messages WHERE ${where.join(' AND ')}`, ...params).n;
   const offset = Math.max(Number(req.query.offset) || 0, 0);
-  const rows = all(`SELECT * FROM messages WHERE ${where.join(' AND ')} ORDER BY id DESC LIMIT 25 OFFSET ?`, ...params, offset);
+  const rows = all(`SELECT * FROM messages WHERE ${where.join(' AND ')} ORDER BY id ${order} LIMIT 25 OFFSET ?`, ...params, offset);
   const cache = new Map();
   res.json({ total, results: rows.map((m) => ser.message(m, cache)) });
 }));

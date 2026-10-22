@@ -3,7 +3,7 @@ import { $, $$, el, esc, on as onEvt, toast, errToast, copyText, isMobile, fmtDu
 import { icon } from '../icons.js';
 import {
   state, on, emit, P, has, currentServer, currentChannel, channelById, displayName, nameAttrs, dmName, isUnread,
-  mentionCount, serverUnread, serverMentions, dmMentions, isMuted, getUser, cacheUser, saveCollapsed, sortedRoles, relationship,
+  mentionCount, serverUnread, serverMentions, dmMentions, isMuted, getUser, typingIn, typingInServer, serverCounts, cacheUser, saveCollapsed, sortedRoles, relationship,
 } from '../store.js';
 import { GET, POST, PUT, DEL, PATCH } from '../api.js';
 import { navigate, channelPath } from '../router.js';
@@ -59,8 +59,10 @@ export function mountApp() {
   on('server_update', () => schedule('sidebar', 'members'));
   on('dms', () => schedule('sidebar', 'rail'));
   on('unread', () => schedule('rail', 'sidebar'));
+  on('typing', () => schedule('rail', 'sidebar'));
+  on('reviews', () => schedule('sidebar'));
   on('notify_settings', () => schedule('rail', 'sidebar'));
-  on('members', (sid) => { if (sid === state.route.serverId) schedule('members'); });
+  on('members', (sid) => { if (sid === state.route.serverId) schedule('members', 'sidebar'); });
   on('presence', () => schedule('members', 'sidebar'));
   on('user', () => schedule('members', 'sidebar', 'panel'));
   on('self', () => schedule('panel', 'members'));
@@ -126,6 +128,7 @@ function renderRail() {
       <button class="rail-btn home" data-home aria-label="Direct Messages"><img src="/icons/logo.png" alt=""></button>
       ${homeMentions ? `<span class="badge">${homeMentions}</span>` : ''}
     </div>
+    ${anyUnread() ? `<div class="rail-item" title="Mark everything as read (Shift+Esc)"><button class="rail-btn action read-all" data-readall aria-label="Mark everything as read">${icon('checkAll')}</button></div>` : ''}
     ${dmUnread.slice(0, 5).map((d) => `<div class="rail-item has-icon" title="${esc(dmName(d))}">
       <span class="pill"></span><button class="rail-btn" data-dm="${d.id}">${d.type === 'dm' ? avatarHtml(d.recipients[0]) : `<span>${icon('users')}</span>`}</button>
       <span class="badge">${mentionCount(d.id)}</span></div>`).join('')}
@@ -136,12 +139,14 @@ function renderRail() {
       const m = serverMentions(s);
       return `<div class="rail-item ${s.icon ? 'has-icon' : ''} ${r.serverId === s.id ? 'active' : ''} ${serverUnread(s) ? 'unread' : ''}" draggable="true" data-server="${s.id}" title="${esc(s.name)}">
         <span class="pill"></span><button class="rail-btn" aria-label="${esc(s.name)}">${serverIconHtml(s)}</button>
-        ${m ? `<span class="badge">${m}</span>` : ''}</div>`;
+        ${m ? `<span class="badge">${m}</span>` : ''}
+        ${typingInServer(s).length ? '<span class="rail-typing" title="Someone is typing"><i></i><i></i><i></i></span>' : ''}</div>`;
     }).join('')}
     <div class="rail-item" title="Add a Server"><button class="rail-btn action" data-add aria-label="Add a Server">${icon('plus')}</button></div>
   `;
   rail.onclick = (e) => {
     if (e.target.closest('[data-home]')) return navigate(lastHome());
+    if (e.target.closest('[data-readall]')) return readAll();
     const dm = e.target.closest('[data-dm]');
     if (dm) return navigate(channelPath('@me', Number(dm.dataset.dm)));
     if (e.target.closest('[data-add]')) return openCreateServer();
@@ -178,6 +183,21 @@ function renderRail() {
     PUT('/users/@me/server-order', { ids: order }).catch(errToast);
   };
 }
+function typingTitle(typers, serverId, where) {
+  return typers.map((t) => `${displayName(t.user_id, serverId)} is typing in ${where} (for ${Math.max(1, Math.round((Date.now() - t.since) / 1000))}s)`).join('\n');
+}
+
+const anyUnread = () => [...state.servers.values()].some(serverUnread) || [...state.dms.values()].some((d) => isUnread(d) && !isMuted(d.id));
+
+// Mark every server channel and DM as read.
+export async function readAll() {
+  for (const ch of [...state.dms.values(), ...[...state.servers.values()].flatMap((s) => s.channels)]) {
+    if (ch.last_message_id) state.readStates.set(ch.id, { channel_id: ch.id, last_read_id: ch.last_message_id, mention_count: 0 });
+  }
+  emit('unread');
+  try { await POST('/ack-all'); toast('All caught up! Everything is marked as read. ✅', 'ok'); } catch (e) { errToast(e); }
+}
+
 let lastHomePath = '/channels/@me';
 const lastHome = () => lastHomePath;
 
@@ -190,6 +210,7 @@ export function serverMenu(s, at) {
     { label: 'Mark As Read', action: () => POST(`/servers/${s.id}/ack`).catch(errToast) },
     { sep: true },
     { label: 'Invite People (PIN)', icon: 'key', action: () => openInvite(s) },
+    { label: 'Server Info & Reviews', icon: 'star', action: () => import('./server-info.js').then((m) => m.openServerInfo(s.id)) },
     { label: isMuted(s.id) ? 'Unmute Server' : 'Mute Server', icon: isMuted(s.id) ? 'bell' : 'bellOff', action: () => setNotify(s.id, { muted: !isMuted(s.id), level: n?.level ?? null }) },
     { header: 'Notifications' },
     ...[['default', 'Default'], ['all', 'All Messages'], ['mentions', 'Only @mentions'], ['none', 'Nothing']].map(([v, label]) => ({
@@ -252,7 +273,10 @@ function renderSidebar() {
       <div class="section-title"><span>Direct Messages</span><button class="icon-btn" data-newdm title="Create DM">${icon('plus')}</button></div>
       ${[...state.dms.values()].map((d) => {
         const other = d.type === 'dm' ? d.recipients[0] : null;
-        const sub = d.type === 'group' ? `${d.recipients.length + 1} Members` : other ? customStatusHtml(getUser(other.id)) : '';
+        const dmTypers = typingIn(d.id);
+        const sub = dmTypers.length
+          ? `<span class="typing-dots inline"><i></i><i></i><i></i></span> ${esc(dmTypers.map((t) => displayName(t.user_id)).join(', '))} ${dmTypers.length === 1 ? 'is' : 'are'} typing…`
+          : d.type === 'group' ? `${d.recipients.length + 1} Members` : other ? customStatusHtml(getUser(other.id)) : '';
         const mc = mentionCount(d.id);
         return `<div class="dm-item ${r.channelId === d.id ? 'active' : ''} ${isUnread(d) && !isMuted(d.id) ? 'unread' : ''}" data-dm="${d.id}">
           ${other ? avatarHtml(getUser(other.id) || other, { status: true }) : `<div class="avatar" style="background:var(--mint)">${icon('users')}</div>`}
@@ -281,10 +305,23 @@ function renderSidebar() {
     return;
   }
 
-  head.innerHTML = s.banner
+  if (!state.members.has(s.id)) loadMembers(s.id).catch(() => {});
+  const counts = serverCounts(s);
+  const counter = `<div class="member-counter" data-info title="Server info & reviews">
+    <span><i class="dot online"></i>${counts.online ?? '–'} Online</span>
+    <span><i class="dot"></i>${counts.total} Member${counts.total === 1 ? '' : 's'}</span>
+    ${counts.voice ? `<span class="voice-count">${icon('volume')}${counts.voice} in Voice</span>` : ''}
+    ${s.rating?.count ? `<span class="rating">★ ${s.rating.average}</span>` : ''}</div>`;
+  head.innerHTML = (s.banner
     ? `<div class="sidebar-header banner" style="background-image:linear-gradient(rgba(0,0,0,.35),transparent 60%),url('${esc(s.banner)}')"><span class="name">${esc(s.name)}</span>${icon('chevron')}</div>`
-    : `<div class="sidebar-header"><span class="name">${esc(s.name)}</span>${icon('chevron')}</div>`;
-  head.onclick = (e) => { const h = e.target.closest('.sidebar-header'); if (h) serverMenu(s, h); };
+    : `<div class="sidebar-header"><span class="name">${esc(s.name)}</span>${icon('chevron')}</div>`) + counter
+    + `<div class="sidebar-search"><button data-searchserver>${icon('search')} Search ${esc(s.name)}</button></div>`;
+  head.onclick = (e) => {
+    if (e.target.closest('[data-info]')) return import('./server-info.js').then((m) => m.openServerInfo(s.id));
+    if (e.target.closest('[data-searchserver]')) return import('./panels.js').then((m) => m.openSearch({ serverId: s.id }));
+    const h = e.target.closest('.sidebar-header');
+    if (h) serverMenu(s, h);
+  };
 
   const canManage = has(s.permissions, P.MANAGE_CHANNELS);
   const chs = orderedChannels(s);
@@ -303,9 +340,11 @@ function renderSidebar() {
     const vstates = state.voice.get(c.id) || [];
     if (collapsed && !active && !unread && !vstates.length) continue;
     const mc = mentionCount(c.id);
+    const typers = typingIn(c.id);
     const priv = c.overwrites?.some((o) => o.deny & P.VIEW_CHANNELS);
     html += `<div class="channel ${active ? 'active' : ''} ${unread ? 'unread' : ''} ${isMuted(c.id) ? 'muted' : ''}" data-ch="${c.id}" ${canManage ? 'draggable="true"' : ''}>
       ${icon(priv && c.type === 'text' ? 'lock' : CHANNEL_ICON[c.type] || 'hash', 'ic')}<span class="name">${emojify(esc(c.name))}</span>
+      ${typers.length ? `<span class="typing-dots" title="${esc(typingTitle(typers, s.id, `#${c.name}`))}"><i></i><i></i><i></i></span>` : ''}
       ${mc ? `<span class="badge">${mc}</span>` : ''}
       ${canManage ? `<span class="actions"><button class="icon-btn" data-edit="${c.id}" title="Edit Channel">${icon('settings')}</button></span>` : ''}
     </div>`;

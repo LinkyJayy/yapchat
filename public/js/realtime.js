@@ -66,11 +66,14 @@ export function connect() {
 
   socket.on('typing', ({ channel_id, user_id }) => {
     if (!state.typing.has(channel_id)) state.typing.set(channel_id, new Map());
-    state.typing.get(channel_id).set(user_id, Date.now() + 9000);
+    const m = state.typing.get(channel_id);
+    const now = Date.now();
+    // Keep when they started typing so the UI can say "for 12s".
+    m.set(user_id, { since: m.get(user_id)?.since || now, expires: now + 9000 });
     emit('typing', channel_id);
     setTimeout(() => {
-      const m = state.typing.get(channel_id);
-      if (m && (m.get(user_id) || 0) <= Date.now()) { m.delete(user_id); emit('typing', channel_id); }
+      const t = state.typing.get(channel_id);
+      if (t && (t.get(user_id)?.expires || 0) <= Date.now()) { t.delete(user_id); emit('typing', channel_id); }
     }, 9100);
   });
 
@@ -156,6 +159,14 @@ export function connect() {
     state.dms.delete(id);
     emit('dms');
     emit('dm_removed', id);
+  });
+  socket.on('read_states', (list) => {
+    for (const rs of list) state.readStates.set(rs.channel_id, { ...state.readStates.get(rs.channel_id), ...rs });
+    emit('unread');
+  });
+  socket.on('reviews_update', ({ server_id, rating }) => {
+    const s = state.servers.get(server_id);
+    if (s) { s.rating = rating; emit('reviews', server_id); }
   });
   socket.on('read_state', (rs) => {
     const cur = state.readStates.get(rs.channel_id);

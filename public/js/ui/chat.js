@@ -1,7 +1,7 @@
 // Text channel / DM view: header, message list, composer.
 import { $, $$, el, esc, toast, errToast, copyText, fmtStamp, fmtTime, fmtFull, fmtDate, fmtBytes, fmtDuration, isMobile, debounce } from '../dom.js';
 import { icon } from '../icons.js';
-import { state, on, emit, P, has, displayName, nameAttrs, roleAttrs, dmName, getUser, cacheUser, isMuted } from '../store.js';
+import { state, on, emit, P, has, displayName, nameAttrs, roleAttrs, dmName, getUser, cacheUser, isMuted, typingIn, typingInServer } from '../store.js';
 import { GET, POST, PUT, DEL, PATCH, upload } from '../api.js';
 import { renderMarkdown, plainText } from '../markdown.js';
 import { emojiHtml, anyEmojiHtml, isEmojiOnly, emojify, emojiByCode, emojiList, loadEmoji, withTone, customEmojiHtml, recentEmoji } from '../emoji.js';
@@ -521,6 +521,7 @@ export function mountChat(slot, ch) {
 
   // ---------- Composer ----------
   let reply = null;
+  let uploading = false;
   let files = []; // { file, spoiler, url }
   let lastTyping = 0;
   let ta;
@@ -699,6 +700,7 @@ export function mountChat(slot, ch) {
 
   function showProgress(p) {
     const t = $('.typing', composerWrap);
+    uploading = p != null;
     if (!t) return;
     if (p == null) return renderTyping();
     t.innerHTML = `Uploading… ${Math.round(p * 100)}%`;
@@ -802,16 +804,35 @@ export function mountChat(slot, ch) {
   }
 
   // ---------- Typing indicator ----------
+  // Who is typing, where (this channel + elsewhere in the server) and for how long.
+  const ago = (since) => `${Math.max(1, Math.round((Date.now() - since) / 1000))}s`;
   function renderTyping() {
     const t = $('.typing', composerWrap);
-    if (!t) return;
-    const ids = [...(state.typing.get(ch.id)?.keys() || [])].filter((id) => id !== state.user.id && state.relationships.get(id)?.type !== 'blocked');
-    if (!ids.length) { t.innerHTML = ''; return; }
-    const names = ids.map((id) => `<b>${esc(displayName(id, sid))}</b>`);
-    const text = names.length === 1 ? `${names[0]} is typing…` : names.length <= 3 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)} are typing…` : 'Several people are typing…';
-    t.innerHTML = `<span class="dots"><i></i><i></i><i></i></span><span>${text}</span>`;
+    if (!t || uploading) return;
+    const here = typingIn(ch.id);
+    const where = isDM ? (ch.type === 'dm' ? '' : ` in ${esc(title)}`) : ` in #${esc(ch.name)}`;
+    let html = '';
+    if (here.length) {
+      const names = here.map((x) => `<b>${esc(displayName(x.user_id, sid))}</b> <span class="faint">(${ago(x.since)})</span>`);
+      const who = here.length === 1 ? `${names[0]} is` : here.length <= 3 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)} are` : `${here.length} people are`;
+      html = `<span class="dots"><i></i><i></i><i></i></span><span>${who} typing${where}…</span>`;
+    }
+    if (server) {
+      const elsewhere = typingInServer(state.servers.get(sid) || server).filter((x) => x.channel.id !== ch.id).slice(0, 3);
+      if (elsewhere.length) {
+        html += `<span class="typing-elsewhere">${here.length ? '· ' : `${icon('message')} `}${elsewhere.map((x) =>
+          `<a href="#" data-goto="${x.channel.id}"><b>${esc(displayName(x.user_id, sid))}</b> in #${esc(x.channel.name)} <span class="faint">(${ago(x.since)})</span></a>`).join(', ')}</span>`;
+      }
+    }
+    t.innerHTML = html;
   }
-  unsubs.push(on('typing', (cid) => { if (cid === ch.id) renderTyping(); }));
+  composerWrap.addEventListener('click', (e) => {
+    const g = e.target.closest('[data-goto]');
+    if (g) { e.preventDefault(); navigate(channelPath(sid, Number(g.dataset.goto))); }
+  });
+  unsubs.push(on('typing', (cid) => { if (cid === ch.id || server?.channels.some((c) => c.id === cid)) renderTyping(); }));
+  const typingTick = setInterval(() => { if (state.typing.size) renderTyping(); }, 1000);
+  unsubs.push(() => clearInterval(typingTick));
 
   // ---------- Drag & drop upload ----------
   let dragDepth = 0;

@@ -53,15 +53,42 @@ export function joinServer() {
     body: `<div class="field"><label>Server PIN</label><input class="input pin-input" data-pin inputmode="numeric" autocomplete="off" maxlength="12" placeholder="••••••••"></div>
       <p class="tiny muted">PINs are 8 digits (or a custom 6–12 digit PIN set by the owner).</p>`,
     buttons: [{ label: 'Back', cls: 'ghost', action: () => { setTimeout(openCreateServer); } }, {
-      label: 'Join Server', action: async (mm) => {
+      label: 'Next', action: async (mm) => {
+        const pin = $('[data-pin]', mm.body).value;
         try {
-          const s = await POST('/servers/join', { pin: $('[data-pin]', mm.body).value });
-          if (!state.servers.has(s.id)) { state.servers.set(s.id, s); state.serverOrder.push(s.id); emit('servers'); }
-          navigate(channelPath(s.id));
-          toast(`Welcome to ${s.name}!`, 'ok');
+          const preview = await POST('/servers/preview', { pin });
+          setTimeout(() => previewServer(preview, pin));
         } catch (e) { errToast(e); return false; }
       },
     }],
+  });
+}
+
+// Show who's there and what people think before joining.
+async function previewServer(p, pin) {
+  const { counterHtml, ratingSummaryHtml, reviewHtml } = await import('./server-info.js');
+  const { serverIconHtml } = await import('./components.js');
+  modal({
+    title: p.member ? "You're already in this server" : 'Join this server?',
+    wide: true,
+    body: `<div class="server-hero" ${p.banner ? `style="background-image:linear-gradient(transparent,var(--bg-modal)),url('${esc(p.banner)}')"` : ''}>
+        <div class="hero-icon">${serverIconHtml(p)}</div>
+        <div><div class="hero-name">${esc(p.name)}</div>${p.description ? `<div class="muted small">${esc(p.description)}</div>` : ''}</div></div>
+      ${counterHtml(p.counts)}
+      <h3 style="margin:18px 0 10px">Reviews</h3>
+      ${ratingSummaryHtml(p.rating)}
+      <div class="reviews">${p.reviews.map((r) => reviewHtml(r)).join('')}</div>
+      ${p.banned ? '<div class="form-error" style="margin-top:12px">You are banned from this server.</div>' : ''}`,
+    buttons: [{ label: 'Back', cls: 'ghost', action: () => { setTimeout(joinServer); } }, ...(p.banned ? [] : [{
+      label: p.member ? 'Open Server' : 'Join Server', action: async () => {
+        try {
+          const s = await POST('/servers/join', { pin });
+          if (!state.servers.has(s.id)) { state.servers.set(s.id, s); state.serverOrder.push(s.id); emit('servers'); }
+          navigate(channelPath(s.id));
+          if (!p.member) toast(`Welcome to ${s.name}!`, 'ok');
+        } catch (e) { errToast(e); return false; }
+      },
+    }])],
   });
 }
 

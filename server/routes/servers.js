@@ -8,6 +8,7 @@ const { requireAuth } = require('../auth');
 const { P, ALL, DEFAULT_EVERYONE, serverPermissions, channelPermissions, has, topPosition, canActOn } = require('../permissions');
 const ser = require('../serialize');
 const gateway = require('../gateway');
+const presence = require('../presence');
 const uploads = require('../uploads');
 const config = require('../config');
 
@@ -53,11 +54,34 @@ function serverPayload(s, uid) {
     pin: has(perms, P.MANAGE_SERVER) ? s.pin : undefined,
     permissions: perms,
     member_count: get('SELECT COUNT(*) AS n FROM members WHERE server_id = ?', s.id).n,
+    rating: serverRating(s.id),
     channels: filtered,
     roles: all('SELECT * FROM roles WHERE server_id = ? ORDER BY position DESC', s.id).map(ser.role),
     emojis: all('SELECT * FROM emojis WHERE server_id = ? ORDER BY name', s.id).map(ser.emoji),
     me: ser.member(s.id, uid),
   };
+}
+
+// Public member counter: total members, who's online, and who's in voice right now.
+function serverCounts(serverId) {
+  const users = all('SELECT u.id, u.status FROM members m JOIN users u ON u.id = m.user_id WHERE m.server_id = ?', serverId);
+  const online = users.filter((u) => presence.statusOf(u) !== 'offline').length;
+  const inVoice = new Set();
+  for (const c of all("SELECT id FROM channels WHERE server_id = ? AND type = 'voice'", serverId)) {
+    for (const v of gateway.voiceStates(c.id)) inVoice.add(v.user_id);
+  }
+  return { total: users.length, online, voice: inVoice.size };
+}
+
+function serverRating(serverId) {
+  const r = get('SELECT AVG(rating) AS avg, COUNT(*) AS n FROM server_reviews WHERE server_id = ?', serverId);
+  const dist = [0, 0, 0, 0, 0];
+  for (const x of all('SELECT rating, COUNT(*) AS n FROM server_reviews WHERE server_id = ? GROUP BY rating', serverId)) dist[x.rating - 1] = x.n;
+  return { average: r.n ? Math.round(r.avg * 10) / 10 : null, count: r.n, distribution: dist };
+}
+
+function reviewPayload(r) {
+  return { user: ser.userById(r.user_id), rating: r.rating, content: r.content, created_at: r.created_at, updated_at: r.updated_at };
 }
 
 // Tell every member to refresh their copy of the server (permissions may have changed).
@@ -139,6 +163,63 @@ r.post('/servers/join', h((req, res) => {
   if (get('SELECT COUNT(*) AS n FROM members WHERE user_id = ?', req.user.id).n >= 200) fail(400, 'You can be in up to 200 servers.');
   addMember(s.id, req.user.id);
   res.json(serverPayload(s, req.user.id));
+}));
+
+// Preview a server from its PIN before joining (name, member counter, rating).
+r.post('/servers/preview', h((req, res) => {
+  rateLimit(`join-pin:${req.user.id}`, 10, 600_000);
+  rateLimit(`join-pin-ip:${req.ip}`, 30, 600_000);
+  const pin = String(req.body.pin || '').replace(/\D/g, '');
+  if (pin.length < 4) fail(400, 'Enter the server PIN.');
+  const s = get('SELECT * FROM servers WHERE pin = ?', pin);
+  if (!s) fail(404, "That PIN doesn't match any server. Double check it and try again.");
+  res.json({
+    id: s.id, name: s.name, icon: s.icon, banner: s.banner, description: s.description, created_at: s.created_at,
+    counts: serverCounts(s.id),
+    rating: serverRating(s.id),
+    reviews: all('SELECT * FROM server_reviews WHERE server_id = ? ORDER BY updated_at DESC LIMIT 3', s.id).map(reviewPayload),
+    member: !!get('SELECT 1 FROM members WHERE server_id = ? AND user_id = ?', s.id, req.user.id),
+    banned: !!get('SELECT 1 FROM bans WHERE server_id = ? AND user_id = ?', s.id, req.user.id),
+  });
+}));
+
+r.get('/servers/:id/counts', h((req, res) => {
+  const s = loadServer(req);
+  res.json(serverCounts(s.id));
+}));
+
+// ---------- Reviews ----------
+r.get('/servers/:id/reviews', h((req, res) => {
+  const s = loadServer(req);
+  res.json({
+    rating: serverRating(s.id),
+    reviews: all('SELECT * FROM server_reviews WHERE server_id = ? ORDER BY updated_at DESC LIMIT 200', s.id).map(reviewPayload),
+  });
+}));
+
+r.put('/servers/:id/reviews/@me', h((req, res) => {
+  const s = loadServer(req);
+  if (s.owner_id === req.user.id) fail(400, "You can't review your own server.");
+  rateLimit(`review:${req.user.id}`, 10, 600_000);
+  const rating = Number(req.body.rating);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) fail(400, 'Pick a rating from 1 to 5 stars.');
+  const content = str(req.body.content, { max: 1000, name: 'Review' });
+  const now = Date.now();
+  run(`INSERT INTO server_reviews (server_id, user_id, rating, content, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(server_id, user_id) DO UPDATE SET rating = excluded.rating, content = excluded.content, updated_at = excluded.updated_at`,
+    s.id, req.user.id, rating, content, now, now);
+  gateway.toServer(s.id, 'reviews_update', { server_id: s.id, rating: serverRating(s.id) });
+  res.json(reviewPayload(get('SELECT * FROM server_reviews WHERE server_id = ? AND user_id = ?', s.id, req.user.id)));
+}));
+
+r.delete('/servers/:id/reviews/:uid', h((req, res) => {
+  const s = loadServer(req);
+  const uid = req.params.uid === '@me' ? req.user.id : toId(req.params.uid);
+  if (uid !== req.user.id && !has(req.perms, P.MANAGE_SERVER)) fail(403, "You can't remove other people's reviews.");
+  run('DELETE FROM server_reviews WHERE server_id = ? AND user_id = ?', s.id, uid);
+  if (uid !== req.user.id) audit(s.id, req.user.id, 'review_delete', uid);
+  gateway.toServer(s.id, 'reviews_update', { server_id: s.id, rating: serverRating(s.id) });
+  res.json({ ok: true });
 }));
 
 r.get('/servers/:id', h((req, res) => {

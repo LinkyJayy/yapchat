@@ -100,3 +100,43 @@ test('friends and DMs', async () => {
   await call('PUT', `/relationships/${aId}/block`, b);
   assert.equal((await call('POST', `/channels/${dm.id}/messages`, a, { content: 'yo?' })).status, 403);
 });
+
+test('PIN preview, member counter, reviews, read-all and search filters', async () => {
+  const owner = await register('rev_owner');
+  const fan = await register('rev_fan');
+  const s = (await call('POST', '/servers', owner, { name: 'Reviewed' })).body;
+  const general = s.channels.find((c) => c.type === 'text');
+
+  // Preview shows the public counter before joining.
+  const preview = (await call('POST', '/servers/preview', fan, { pin: s.pin })).body;
+  assert.equal(preview.name, 'Reviewed');
+  assert.equal(preview.counts.total, 1);
+  assert.equal(preview.member, false);
+  await call('POST', '/servers/join', fan, { pin: s.pin });
+
+  // Reviews: members can rate, owners can't rate their own server, ratings are validated.
+  assert.equal((await call('PUT', `/servers/${s.id}/reviews/@me`, owner, { rating: 5 })).status, 400);
+  assert.equal((await call('PUT', `/servers/${s.id}/reviews/@me`, fan, { rating: 9 })).status, 400);
+  assert.equal((await call('PUT', `/servers/${s.id}/reviews/@me`, fan, { rating: 4, content: 'Great vibes' })).status, 200);
+  const reviews = (await call('GET', `/servers/${s.id}/reviews`, owner)).body;
+  assert.equal(reviews.rating.average, 4);
+  assert.equal(reviews.reviews[0].content, 'Great vibes');
+  const fanId = reviews.reviews[0].user.id;
+  // Owner can remove a review.
+  assert.equal((await call('DELETE', `/servers/${s.id}/reviews/${fanId}`, owner)).status, 200);
+  assert.equal((await call('GET', `/servers/${s.id}/reviews`, owner)).body.rating.count, 0);
+
+  // Search filters.
+  await call('POST', `/channels/${general.id}/messages`, owner, { content: 'pineapple pizza' });
+  await call('POST', `/channels/${general.id}/messages`, owner, { content: 'see https://example.com' });
+  const hit = (await call('GET', `/search?server_id=${s.id}&q=pineapple&in_channel=${general.id}`, fan)).body;
+  assert.equal(hit.total, 1);
+  assert.equal((await call('GET', `/search?server_id=${s.id}&has=link`, fan)).body.total, 1);
+  assert.equal((await call('GET', `/search?server_id=${s.id}&q=pineapple&before=1`, fan)).body.total, 0);
+
+  // Read all clears unread state.
+  const ack = (await call('POST', '/ack-all', fan)).body;
+  assert.ok(ack.count >= 1);
+  const rs = (await call('GET', '/ready', fan)).body.read_states.find((r) => r.channel_id === general.id);
+  assert.equal(rs.mention_count, 0);
+});
